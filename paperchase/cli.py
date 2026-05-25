@@ -59,32 +59,123 @@ def main(ctx: click.Context) -> None:
 
 @main.command(help="Open the interactive REPL.")
 def chat() -> None:
-    renderer.banner(animate=True)
     cfg, vault = _bootstrap()
     runtime_name = cfg.runtime_default
+    reg = SkillRegistry()
+    reg.discover_builtin()
+
+    renderer.banner(
+        animate=True,
+        model=runtime_name,
+        tool_count=9,
+        active_runtimes=len(registered_runtimes()),
+        total_runtimes=3,
+        skill_count=len(reg.list()),
+    )
+
     if runtime_name not in registered_runtimes():
-        console.print(f"[red]runtime '{runtime_name}' not available[/red]")
+        renderer.alert(f"runtime '{runtime_name}' not available")
         return
     from paperchase.runtimes import get_runtime
 
     sess = ReplSession(runtime=get_runtime(runtime_name), vault=vault, workspace_root=cfg.workspace_root)
     sess.start()
-    console.print("[dim]Type 'exit' or Ctrl-D to leave. Vault at ~/.paperchase/vault.db[/dim]\n")
+    turn_count = 0
     while True:
         try:
             text = console.input("[bright_green]> [/bright_green]")
         except (EOFError, KeyboardInterrupt):
             console.print()
             break
-        if text.strip().lower() in {"exit", "quit"}:
-            break
-        if not text.strip():
+        stripped = text.strip()
+        if not stripped:
             continue
+        # Slash commands
+        if stripped.startswith("/"):
+            cmd = stripped[1:].split(maxsplit=1)[0].lower()
+            if cmd in {"quit", "exit", "q"}:
+                break
+            if cmd == "help":
+                renderer.slash_help()
+                continue
+            if cmd == "status":
+                _print_status_inline(cfg, vault, reg)
+                continue
+            if cmd == "skills":
+                for s in reg.list():
+                    console.print(f"  [bright_green]{s.name}[/bright_green]  v{s.version}  — {s.description}")
+                if not reg.list():
+                    renderer.print_meta("  no skills installed")
+                continue
+            if cmd == "reflect":
+                _run_reflect_inline(cfg, vault)
+                continue
+            if cmd in {"follow", "rabbit"}:
+                renderer.follow_the_rabbit()
+                continue
+            renderer.alert(f"unknown slash command: /{cmd}  (try /help)")
+            continue
+        # Normal chat turn
         reply = sess.handle_user_input(text)
         renderer.print_assistant(reply)
+        turn_count += 1
     sess.stop()
     vault.close()
-    renderer.sign_off()
+    renderer.sign_off(turn_count)
+
+
+def _print_status_inline(cfg, vault, reg) -> None:
+    renderer.print_section(
+        "RUNTIME",
+        [
+            ("registered", ", ".join(registered_runtimes()) or "(none)"),
+            ("default", cfg.runtime_default),
+            ("ollama host", cfg.ollama_host),
+        ],
+    )
+    renderer.print_section(
+        "VAULT",
+        [
+            ("path", str(_vault_path())),
+            ("workspace", str(cfg.workspace_root)),
+            ("max iters", str(cfg.max_iterations)),
+        ],
+    )
+    skill_rows = [(s.name, f"v{s.version}") for s in reg.list()]
+    renderer.print_section("SKILLS", skill_rows or [("(none)", "")])
+    console.print()
+    console.print("[bright_green][ LINKS ][/bright_green]")
+    renderer.print_links()
+
+
+def _run_reflect_inline(cfg, vault) -> None:
+    from paperchase.runtimes import get_runtime
+    from paperchase.runtimes.base import Message
+    from paperchase.vault.retriever import get_recent_sessions_summary, save_learnings
+
+    summary_md = get_recent_sessions_summary(vault, limit=10)
+    if summary_md.strip() == "_no sessions yet_":
+        renderer.print_meta("  no sessions in vault yet — nothing to reflect on")
+        return
+    rt = get_runtime(cfg.runtime_default)
+    msgs = [
+        Message(
+            role="system",
+            content=(
+                "You are PaperChase's reflection module. Given a markdown summary of recent "
+                "agent sessions, identify recurring patterns, failure modes, and successful "
+                "approaches. Output a concise markdown memo (max 1500 chars) for future "
+                "agent sessions to internalize. No preamble — just the memo."
+            ),
+        ),
+        Message(role="user", content=summary_md),
+    ]
+    response = rt.chat(msgs)
+    memo = response.content.strip()[:1500]
+    save_learnings(_home(), memo)
+    console.print("[bright_green][ LEARNINGS WRITTEN ][/bright_green] ~/.paperchase/learnings.md")
+    console.print()
+    console.print(memo)
 
 
 @main.command(name="auto", help="Run the autonomous PLAN/ACT/CRITIQUE loop until done.")
