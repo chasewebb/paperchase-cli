@@ -14,6 +14,8 @@ class OllamaRuntime:
     def __init__(self, host: str = "http://localhost:11434", model: str = "llama3.2"):
         self.host = host.rstrip("/")
         self.model = model
+        # Stored after each chat() for the REPL's /tokens command
+        self.last_response: Response | None = None
 
     def _messages_payload(self, messages: list[Message]) -> list[dict]:
         return [
@@ -37,11 +39,13 @@ class OllamaRuntime:
             r.raise_for_status()
             data = r.json()
         msg = data.get("message", {})
-        return Response(
+        response = Response(
             content=msg.get("content", ""),
             tool_calls=msg.get("tool_calls"),
             raw=data,
         )
+        self.last_response = response
+        return response
 
     def stream(
         self, messages: list[Message], tools: list[ToolSchema] | None = None

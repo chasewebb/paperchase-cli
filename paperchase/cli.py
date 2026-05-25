@@ -59,6 +59,10 @@ def main(ctx: click.Context) -> None:
 
 @main.command(help="Open the interactive REPL.")
 def chat() -> None:
+    import os as _os
+    import shlex as _shlex
+    import subprocess as _subprocess
+
     cfg, vault = _bootstrap()
     runtime_name = cfg.runtime_default
     reg = SkillRegistry()
@@ -80,10 +84,22 @@ def chat() -> None:
 
     sess = ReplSession(runtime=get_runtime(runtime_name), vault=vault, workspace_root=cfg.workspace_root)
     sess.start()
-    turn_count = 0
+
+    state: dict = {
+        "backend": runtime_name,
+        "last_user": None,
+        "last_assistant": None,
+        "last_model": runtime_name,
+        "tokens_total": 0,
+        "plan_mode": False,
+        "attachments": [],
+        "turn_count": 0,
+    }
+
     while True:
         try:
-            text = console.input("[bright_green]> [/bright_green]")
+            prompt_prefix = "[bright_green]" + ("[PLAN] " if state["plan_mode"] else "") + "> [/bright_green]"
+            text = console.input(prompt_prefix)
         except (EOFError, KeyboardInterrupt):
             console.print()
             break
@@ -92,18 +108,132 @@ def chat() -> None:
             continue
         # Slash commands
         if stripped.startswith("/"):
-            cmd = stripped[1:].split(maxsplit=1)[0].lower()
+            parts = stripped[1:].split(maxsplit=1)
+            cmd = parts[0].lower()
+            rest = parts[1] if len(parts) > 1 else ""
             if cmd in {"quit", "exit", "q"}:
                 break
             if cmd == "help":
                 renderer.slash_help()
+                continue
+            if cmd == "clear":
+                console.clear()
+                continue
+            if cmd == "reset":
+                sess.stop()
+                sess = ReplSession(runtime=sess.runtime, vault=vault, workspace_root=cfg.workspace_root)
+                sess.start()
+                state["last_user"] = state["last_assistant"] = None
+                state["attachments"] = []
+                renderer.print_meta("  conversation memory cleared")
+                continue
+            if cmd == "retry":
+                if not state["last_user"]:
+                    renderer.alert("nothing to retry — no previous turn")
+                    continue
+                _handle_chat_turn(state["last_user"], state, sess, reg)
+                continue
+            if cmd == "undo":
+                if len(sess.history) >= 2:
+                    sess.history.pop()
+                    sess.history.pop()
+                    renderer.print_meta("  last turn pair dropped")
+                else:
+                    renderer.alert("nothing to undo")
+                continue
+            if cmd == "last":
+                if state["last_assistant"]:
+                    renderer.print_assistant(state["last_assistant"])
+                else:
+                    renderer.print_meta("  no assistant response yet")
+                continue
+            if cmd == "tokens":
+                console.print(f"  [bright_green]tokens this session:[/bright_green] {state['tokens_total']:,}")
+                continue
+            if cmd == "model":
+                if rest:
+                    state["last_model"] = rest.strip()
+                    renderer.print_meta(f"  next turn will request model: {state['last_model']}")
+                else:
+                    console.print(f"  [bright_green]model:[/bright_green] {state['last_model']}")
+                continue
+            if cmd == "backend":
+                if rest:
+                    if rest.strip() in registered_runtimes():
+                        state["backend"] = rest.strip()
+                        sess.runtime = get_runtime(state["backend"])
+                        renderer.print_meta(f"  backend → {state['backend']}")
+                    else:
+                        renderer.alert(f"unknown backend '{rest.strip()}' (try /backends)")
+                else:
+                    console.print(f"  [bright_green]backend:[/bright_green] {state['backend']}")
+                continue
+            if cmd == "backends":
+                for name in registered_runtimes():
+                    mark = "●" if name == state["backend"] else "○"
+                    console.print(f"  [bright_green]{mark}[/bright_green] {name}")
+                continue
+            if cmd == "plan":
+                state["plan_mode"] = not state["plan_mode"]
+                renderer.print_meta(
+                    f"  plan mode {'ON — analysis only, no edits' if state['plan_mode'] else 'OFF'}"
+                )
+                continue
+            if cmd == "read":
+                if not rest:
+                    renderer.alert("usage: /read PATH")
+                    continue
+                try:
+                    body = Path(rest.strip()).read_text()
+                    state["attachments"].append({"kind": "file", "path": rest.strip(), "body": body})
+                    renderer.print_meta(f"  attached {len(body)} chars from {rest.strip()}")
+                except OSError as e:
+                    renderer.alert(f"read failed: {e}")
+                continue
+            if cmd == "bash":
+                if not rest:
+                    renderer.alert("usage: /bash COMMAND")
+                    continue
+                try:
+                    r = _subprocess.run(rest, shell=True, capture_output=True, text=True, timeout=30)
+                    out = (r.stdout or "") + (r.stderr or "")
+                    console.print(out[:2000] or "(no output)")
+                    state["attachments"].append({"kind": "shell", "cmd": rest, "output": out[:4000]})
+                except _subprocess.TimeoutExpired:
+                    renderer.alert("bash command timed out (30s)")
+                continue
+            if cmd == "attach":
+                if not state["attachments"]:
+                    renderer.print_meta("  no attachments queued")
+                else:
+                    for i, a in enumerate(state["attachments"], 1):
+                        console.print(f"  [{i}] {a['kind']} · {a.get('path', a.get('cmd', ''))[:60]}")
+                continue
+            if cmd == "save":
+                if not state["last_assistant"]:
+                    renderer.alert("nothing to save — no assistant response yet")
+                    continue
+                path = rest.strip() or f"paperchase-{int(__import__('time').time())}.md"
+                Path(path).write_text(state["last_assistant"])
+                renderer.print_meta(f"  saved last response → {path}")
+                continue
+            if cmd == "copy":
+                if not state["last_assistant"]:
+                    renderer.alert("nothing to copy — no assistant response yet")
+                    continue
+                try:
+                    p = _subprocess.Popen(["pbcopy"], stdin=_subprocess.PIPE)
+                    p.communicate(state["last_assistant"].encode())
+                    renderer.print_meta("  copied last response to clipboard")
+                except FileNotFoundError:
+                    renderer.alert("pbcopy not available (macOS only)")
                 continue
             if cmd == "status":
                 _print_status_inline(cfg, vault, reg)
                 continue
             if cmd == "skills":
                 for s in reg.list():
-                    console.print(f"  [bright_green]{s.name}[/bright_green]  v{s.version}  — {s.description}")
+                    console.print(f"  [bright_green]{s.name}[/bright_green]  v{s.version}  — {s.description[:80]}")
                 if not reg.list():
                     renderer.print_meta("  no skills installed")
                 continue
@@ -112,13 +242,46 @@ def chat() -> None:
                 continue
             renderer.alert(f"unknown slash command: /{cmd}  (try /help)")
             continue
+
         # Normal chat turn
-        reply = sess.handle_user_input(text)
-        renderer.print_assistant(reply)
-        turn_count += 1
+        _handle_chat_turn(text, state, sess, reg)
     sess.stop()
     vault.close()
-    renderer.sign_off(turn_count)
+    renderer.sign_off(state["turn_count"])
+
+
+def _handle_chat_turn(text: str, state: dict, sess, reg) -> None:
+    """Process one user turn — handles attachments + plan mode + token tracking."""
+    # Prepend any queued attachments
+    if state["attachments"]:
+        attachment_blocks = []
+        for a in state["attachments"]:
+            if a["kind"] == "file":
+                attachment_blocks.append(f"[file:{a['path']}]\n{a['body']}\n[/file]")
+            elif a["kind"] == "shell":
+                attachment_blocks.append(f"[shell:{a['cmd']}]\n{a['output']}\n[/shell]")
+        text = "\n\n".join(attachment_blocks) + "\n\n" + text
+        state["attachments"] = []
+    if state["plan_mode"]:
+        text = (
+            "PLAN MODE — analyze only, do not propose edits or actions. "
+            "Output a numbered plan of what you'd do.\n\n" + text
+        )
+    state["last_user"] = text
+    reply = sess.handle_user_input(text)
+    state["last_assistant"] = reply
+    # Token tracking — pull from runtime's last response if available
+    last_response = getattr(sess.runtime, "last_response", None)
+    if last_response and getattr(last_response, "raw", None):
+        raw = last_response.raw
+        n = (
+            raw.get("eval_count")  # Ollama
+            or (raw.get("usage") or {}).get("total_tokens")  # OpenAI/Anthropic-shape
+            or 0
+        )
+        state["tokens_total"] += n
+    renderer.print_assistant(reply)
+    state["turn_count"] += 1
 
 
 def _print_status_inline(cfg, vault, reg) -> None:

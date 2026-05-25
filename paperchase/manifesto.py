@@ -33,11 +33,35 @@ SLASH_HINT = "Type to chat. Slash for commands. /help · /quit"
 SLASH_HELP = """
 [ CODEC COMMANDS · FREQ 140.85 ]
 
-  /help        show this list
-  /status      runtimes, vault, skills, links
-  /skills      list installed skills
-  /reflect     distill recent sessions into ~/.paperchase/learnings.md
-  /quit        leave the codec
+  Session
+    /help              show this list
+    /clear             clear screen
+    /quit              leave the codec (alias: /exit /q)
+    /reset             clear conversation memory
+    /retry             re-fire your last turn
+    /undo              drop the last turn pair
+    /last              re-print the last assistant response
+    /tokens            cumulative token usage this session
+
+  Runtime
+    /status            runtimes, vault, skills, links
+    /backend [NAME]    show or set active backend
+    /backends          list registered backends
+    /model [NAME]      show or set the local model
+
+  Tools
+    /read PATH         attach a file to the next turn
+    /bash CMD          run a shell command, attach output
+    /attach            list queued attachments
+    /plan              toggle plan mode (analysis only)
+
+  Output
+    /save [PATH]       save last response to a file
+    /copy              copy last response to macOS clipboard
+
+  Knowledge
+    /skills            list installed skills
+    /reflect           distill recent sessions into learnings.md
 """
 
 ALERT = "!"
