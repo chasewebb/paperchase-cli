@@ -1,15 +1,16 @@
 <p align="center">
-  <img src="art/operator.png" alt="PaperChase Operator" width="240" />
+  <img src="art/operator-hud.png" alt="PaperChase Operator — Sovereign Operator System" width="640" />
 </p>
 
 <p align="center">
   <strong>[ TRANSMISSION SIGNED BY PAPERCHASELABS ]</strong><br/>
-  <code>FREQ 140.85 · CH 401 · CLI</code>
+  <code>FREQ 140.85 · CH 401 · CLI</code><br/>
+  <a href="https://paperchaselabs.com">paperchaselabs.com</a>
 </p>
 
 # PaperChase
 
-> **Autonomous operator CLI.** Claude-Code-style REPL meets Hermes-class autonomous loop. Operator-owned. Sovereign by default. MIT-licensed.
+> **The Sovereign Operator System.** Autonomous AI operator CLI — Claude-Code-style REPL meets Hermes-class autonomous loop. Memory engine, multi-agent dispatch, MCP server, skill registry. Operator-owned. Sovereign by default. MIT.
 
 ```bash
 pip install paperchase
