@@ -1,0 +1,29 @@
+{
+  "name": "@paperchase/mcp",
+  "version": "0.1.0",
+  "description": "TypeScript MCP companion for PaperChase. Mirrors the Python MCP server for JS-native consumers.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "paperchase-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "homepage": "https://paperchaselabs.com",
+  "repository": "github:chasewebb/paperchase-cli"
+}
