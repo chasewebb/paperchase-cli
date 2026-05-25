@@ -38,17 +38,14 @@ class SkillRegistry:
         if not BUILTIN_ROOT.exists():
             return
         for sub in BUILTIN_ROOT.iterdir():
-            if not sub.is_dir():
+            if not sub.is_dir() or sub.name.startswith("_"):
                 continue
-            toml = sub / "skill.toml"
-            if not toml.exists():
-                continue
-            self.register(SkillManifest.load(sub))
+            if (sub / "skill.toml").exists() or (sub / "SKILL.md").exists():
+                self.register(SkillManifest.load(sub))
 
     def discover_local(self, root: Path) -> None:
-        toml = root / "skill.toml"
-        if not toml.exists():
-            raise FileNotFoundError(f"no skill.toml in {root}")
+        if not (root / "skill.toml").exists() and not (root / "SKILL.md").exists():
+            raise FileNotFoundError(f"no skill.toml or SKILL.md in {root}")
         self.register(SkillManifest.load(root))
 
     def discover_github(self, spec: str) -> SkillManifest:
@@ -93,20 +90,35 @@ class SkillRegistry:
                 text=True,
             )
 
-        toml = dest / "skill.toml"
-        if not toml.exists():
+        if not (dest / "skill.toml").exists() and not (dest / "SKILL.md").exists():
             raise ValueError(
-                f"github:{owner}/{repo} cloned to {dest} but no skill.toml at repo root"
+                f"github:{owner}/{repo} cloned to {dest} but no skill.toml or SKILL.md at repo root"
             )
         manifest = SkillManifest.load(dest)
         self.register(manifest)
         return manifest
 
     def invoke(self, name: str, args: dict) -> dict:
+        """Invoke a registered skill.
+
+        - 'toml' skills run their Python entry function with the args dict.
+        - 'markdown' skills return their body — callers load it into the system prompt
+          (or display it for the operator). No code execution.
+        """
         m = self.get(name)
-        # entry format 'module:function' — module is relative to skill dir
+        if m.kind == "markdown":
+            return {
+                "ok": True,
+                "kind": "markdown",
+                "name": m.name,
+                "description": m.description,
+                "body": m.body,
+                "note": "load body into system prompt to activate this skill",
+            }
+        # TOML / Python entry skill
+        if not m.entry:
+            return {"ok": False, "error": f"skill '{name}' has no Python entry"}
         mod_name, func_name = m.entry.split(":")
-        # ensure skill dir is on path
         if m.path and str(m.path) not in sys.path:
             sys.path.insert(0, str(m.path))
         mod = importlib.import_module(mod_name)
