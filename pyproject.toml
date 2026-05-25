@@ -62,3 +62,4 @@ ignore = ["S101", "S603", "S607"]
 testpaths = ["tests/python"]
 python_files = "test_*.py"
 asyncio_mode = "auto"
+pythonpath = ["."]
