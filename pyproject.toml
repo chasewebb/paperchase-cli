@@ -1,0 +1,64 @@
+[project]
+name = "paperchase"
+version = "0.1.0"
+description = "Proprietary AI operator CLI by PaperChaseLabs. Claude-Code-style REPL + Hermes-class autonomous loop."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Chase Webb", email = "mgmt@paperchasewebb.com" }]
+requires-python = ">=3.11"
+keywords = ["ai", "agent", "cli", "mcp", "autonomous", "operator"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+  "click>=8.1",
+  "rich>=13.7",
+  "prompt_toolkit>=3.0",
+  "httpx>=0.27",
+  "pydantic>=2.5",
+  "tomli>=2.0; python_version < '3.11'",
+  "platformdirs>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=4.1",
+  "ruff>=0.4",
+  "mypy>=1.8",
+]
+
+[project.scripts]
+paperchase = "paperchase.cli:main"
+
+[project.urls]
+Homepage = "https://paperchaselabs.com"
+Repository = "https://github.com/chasewebb/paperchase-cli"
+Issues = "https://github.com/chasewebb/paperchase-cli/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["paperchase"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "RUF"]
+ignore = ["S101", "S603", "S607"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+python_files = "test_*.py"
+asyncio_mode = "auto"
