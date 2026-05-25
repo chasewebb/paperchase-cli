@@ -8,6 +8,10 @@
   <a href="https://paperchaselabs.com">paperchaselabs.com</a>
 </p>
 
+<p align="center">
+  <img src="art/operator.png" alt="PaperChase — official operator logo" width="120" />
+</p>
+
 # PaperChase
 
 > **The Sovereign Operator System.** Autonomous AI operator CLI — Claude-Code-style REPL meets Hermes-class autonomous loop. Memory engine, multi-agent dispatch, MCP server, skill registry. Operator-owned. Sovereign by default. MIT.
