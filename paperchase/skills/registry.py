@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import importlib
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -9,6 +11,14 @@ from paperchase.skills.schema import SkillManifest
 
 
 BUILTIN_ROOT = Path(__file__).parent / "builtin"
+
+
+def _user_skill_root() -> Path:
+    """Where remotely-installed skills land on disk."""
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    root = home / ".paperchase" / "skills"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 class SkillRegistry:
@@ -40,6 +50,57 @@ class SkillRegistry:
         if not toml.exists():
             raise FileNotFoundError(f"no skill.toml in {root}")
         self.register(SkillManifest.load(root))
+
+    def discover_github(self, spec: str) -> SkillManifest:
+        """Install a skill from `github:owner/repo[@ref]`.
+
+        Clones (or updates) the repo to ~/.paperchase/skills/<owner>__<repo>/
+        and registers it. Validates a `skill.toml` exists at the repo root.
+
+        Returns the registered SkillManifest.
+        Raises ValueError if spec is malformed or no skill.toml at root.
+        """
+        if not spec.startswith("github:"):
+            raise ValueError(f"expected github:owner/repo, got {spec!r}")
+        body = spec[len("github:"):]
+        ref: str | None = None
+        if "@" in body:
+            body, ref = body.split("@", 1)
+        if body.count("/") != 1:
+            raise ValueError(f"malformed github spec {spec!r}; expected github:owner/repo")
+        owner, repo = body.split("/")
+        dest = _user_skill_root() / f"{owner}__{repo}"
+
+        if not dest.exists():
+            subprocess.run(
+                ["git", "clone", "--depth=1", f"https://github.com/{owner}/{repo}.git", str(dest)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        else:
+            subprocess.run(
+                ["git", "-C", str(dest), "fetch", "--depth=1"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        if ref:
+            subprocess.run(
+                ["git", "-C", str(dest), "checkout", ref],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+        toml = dest / "skill.toml"
+        if not toml.exists():
+            raise ValueError(
+                f"github:{owner}/{repo} cloned to {dest} but no skill.toml at repo root"
+            )
+        manifest = SkillManifest.load(dest)
+        self.register(manifest)
+        return manifest
 
     def invoke(self, name: str, args: dict) -> dict:
         m = self.get(name)
