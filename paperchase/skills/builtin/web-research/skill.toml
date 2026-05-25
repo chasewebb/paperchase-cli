@@ -1,0 +1,9 @@
+[skill]
+name = "web-research"
+version = "0.1.0"
+description = "Fetches a URL and returns the text content, truncated."
+entry = "skill:run"
+
+[skill.tools_required]
+runtime = "any"
+tools = ["WebFetch"]
