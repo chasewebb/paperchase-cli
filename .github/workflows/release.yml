@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # for GitHub Releases
+  id-token: write   # for PyPI trusted publishing
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  npm-shim:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: npx-shim } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", registry-url: "https://registry.npmjs.org" }
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  npm-mcp:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mcp-ts } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", registry-url: "https://registry.npmjs.org" }
+      - run: npm ci && npm run build
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  rust-binaries:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+    defaults: { run: { working-directory: fs-watcher } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: "${{ matrix.target }}" }
+      - run: cargo build --release --target ${{ matrix.target }}
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: fs-watcher/target/${{ matrix.target }}/release/paperchase-fs-watcher
+
+  homebrew-bump:
+    needs: [pypi]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update formula sha256 + version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          # fetch sha256 of the PyPI sdist
+          URL="https://files.pythonhosted.org/packages/source/p/paperchase/paperchase-${VERSION}.tar.gz"
+          # poll until PyPI shows the new version (may take ~30s after pypi job ends)
+          for i in {1..10}; do
+            if curl -sI "$URL" | grep -q "200 OK"; then break; fi
+            sleep 15
+          done
+          SHA=$(curl -sL "$URL" | shasum -a 256 | awk '{print $1}')
+          sed -i "s/REPLACED_BY_RELEASE_AUTOMATION/${SHA}/" homebrew-tap/Formula/paperchase.rb
+          sed -i "s/paperchase-0\.1\.0\.tar\.gz/paperchase-${VERSION}.tar.gz/" homebrew-tap/Formula/paperchase.rb
+      - name: Open PR against the tap repo
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+          commit-message: "paperchase ${{ github.ref_name }}"
+          title: "paperchase ${{ github.ref_name }}"
+          branch: bump-paperchase-${{ github.ref_name }}
