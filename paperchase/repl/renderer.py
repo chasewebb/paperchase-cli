@@ -1,7 +1,7 @@
 """Rich-based codec-styled output for the REPL.
 
-MGS1 codec aesthetic — phosphor green on near-black, FREQ 140.85 readout,
-channel-tuning boot lines, rabbit mascot in a thin codec frame, sign-offs.
+Three-pane MGS1 codec view: [ OPERATOR | PTT/FREQ/MEMORY dial | AGENT ].
+Phosphor green on near-black. Konami-style boot atmosphere.
 """
 from __future__ import annotations
 
@@ -29,6 +29,10 @@ from paperchase.manifesto import (
 
 _console = Console()
 
+# Each pane is 24 chars wide (inner). Three panes + two spaces = 78 cols total.
+PANE_W = 24
+GAP = "  "
+
 
 def banner(
     *,
@@ -39,8 +43,7 @@ def banner(
     total_runtimes: int = 3,
     skill_count: int = 1,
 ) -> None:
-    """Render the full codec banner. Optionally play a tuning-in animation."""
-    # [ INCOMING TRANSMISSION ] marker
+    """Render the three-pane codec banner."""
     _console.print()
     _console.print(Text(f"[ INCOMING TRANSMISSION · {FREQ} ]", style="bright_green"))
     _console.print(Text(SEP_BAR, style="green"))
@@ -54,64 +57,94 @@ def banner(
     _console.print(Text(TAGLINE, style="bright_green"))
     _console.print()
 
-    # Codec frame around the rabbit + version/model/tools
-    _render_rabbit_box(model=model, tool_count=tool_count)
-    _console.print()
+    # Three-pane codec view
+    left_lines = _operator_pane()
+    mid_lines = _ptt_dial_pane(active_runtimes=active_runtimes, total_runtimes=total_runtimes)
+    right_lines = _agent_pane(model=model, tool_count=tool_count, skill_count=skill_count)
 
-    # Status tag row
-    tags = [
-        CHANNEL,
-        FREQ,
-        "PYTHON",
-        "MULTI-AGENT",
-        f"{tool_count} TOOLS",
-        f"{active_runtimes}/{total_runtimes} RUNTIMES",
-        f"{skill_count} SKILLS",
-        "PAPERCHASEWEBB INC.",
-    ]
-    _console.print(Text(" · ".join(tags), style="dim bright_green"))
-    _console.print()
+    rows = max(len(left_lines), len(mid_lines), len(right_lines))
+    left_lines += [" " * PANE_W] * (rows - len(left_lines))
+    mid_lines += [" " * PANE_W] * (rows - len(mid_lines))
+    right_lines += [" " * PANE_W] * (rows - len(right_lines))
 
-    # Slash hint
+    for l, m, r in zip(left_lines, mid_lines, right_lines):
+        _console.print(Text(l + GAP + m + GAP + r, style="bright_green"))
+
+    _console.print()
     _console.print(Text("[ TRANSMISSION SIGNED BY PAPERCHASELABS ]", style="bright_green"))
     _console.print(Text(SLASH_HINT, style="dim"))
     _console.print()
 
 
+def _pane(lines: list[str]) -> list[str]:
+    """Wrap a list of inner lines in a thin codec frame of width PANE_W."""
+    inner = PANE_W - 2  # account for │ borders
+    top = "╭" + "─" * inner + "╮"
+    bot = "╰" + "─" * inner + "╯"
+    body = [f"│{line[:inner].ljust(inner)}│" for line in lines]
+    return [top] + body + [bot]
+
+
+def _operator_pane() -> list[str]:
+    """Left pane — the operator (rabbit mascot + label)."""
+    inside = [
+        "",
+        "   " + RABBIT[0],
+        "   " + RABBIT[1],
+        "   " + RABBIT[2],
+        "",
+        "    OPERATOR",
+        "",
+    ]
+    return _pane(inside)
+
+
+def _ptt_dial_pane(*, active_runtimes: int, total_runtimes: int) -> list[str]:
+    """Center pane — PTT / FREQ readout / MEMORY (the codec dial)."""
+    freq_seven_seg = "140.85"
+    runtime_bar = _bar(active_runtimes, total_runtimes, width=10)
+    inside = [
+        "",
+        "    [ PTT ]",
+        "  ╭──────────╮",
+        f"  │ {freq_seven_seg:>8} │",
+        "  ╰──────────╯",
+        f"   {runtime_bar}",
+        "   [ MEMORY ]",
+        "",
+    ]
+    return _pane(inside)
+
+
+def _agent_pane(*, model: str, tool_count: int, skill_count: int) -> list[str]:
+    """Right pane — the agent identification (title, version, model, tools, skills)."""
+    inside = [
+        "",
+        "    PAPERCHASE",
+        f"     v{__version__}",
+        "",
+        f"   {model} · {tool_count} tools",
+        f"   {skill_count} skill" + ("" if skill_count == 1 else "s"),
+        "",
+        "      AGENT",
+        "",
+    ]
+    return _pane(inside)
+
+
+def _bar(filled: int, total: int, *, width: int = 10) -> str:
+    """Codec-style progress bar: filled blocks ▰ + empty blocks ▱."""
+    if total <= 0:
+        return "▱" * width
+    n = max(0, min(width, round(width * filled / total)))
+    return ("▰" * n) + ("▱" * (width - n))
+
+
 def _animate_boot() -> None:
-    """Tuning-in lines printed one at a time, codec-style."""
     for line in BOOT_LINES:
         _console.print(Text(f"  {line}", style="dim bright_green"))
         time.sleep(0.16)
     _console.print()
-
-
-def _render_rabbit_box(*, model: str, tool_count: int) -> None:
-    """Thin codec frame with the rabbit + version/model/tools inline."""
-    inner_width = 44
-    top = "╭" + "─" * inner_width + "╮"
-    bot = "╰" + "─" * inner_width + "╯"
-    side = "│"
-
-    def _row(text: str, style: str = "bright_green") -> None:
-        padded = text.ljust(inner_width)
-        _console.print(
-            Text.assemble(
-                (side, "green"),
-                (padded, style),
-                (side, "green"),
-            )
-        )
-
-    _console.print(Text(top, style="green"))
-    _row("")
-    _row(f"   {RABBIT[0]}   {TITLE} v{__version__}")
-    _row(f"   {RABBIT[1]} {model} · {tool_count} tools")
-    _row(f"   {RABBIT[2]}")
-    _row("")
-    _row("   follow the white rabbit ⇣", style="dim bright_green")
-    _row("")
-    _console.print(Text(bot, style="green"))
 
 
 def sign_off(turn_count: int = 0) -> None:
@@ -126,7 +159,6 @@ def slash_help() -> None:
 
 
 def alert(message: str) -> None:
-    """Codec alert line — used for permission gates, errors, halts."""
     _console.print(Text(f"  !  {message}", style="bold red"))
 
 
@@ -163,18 +195,3 @@ def print_section(label: str, items: Sequence[tuple[str, str]]) -> None:
                 (v, "white"),
             )
         )
-
-
-def follow_the_rabbit() -> None:
-    """`/follow` easter egg. Codec moment with the rabbit hopping off-screen."""
-    frames = [
-        r"  (\(    follow",
-        r"  ( ·.·) follow the white",
-        r'  c("")("")  follow the white rabbit',
-        r"                          ⇣",
-        r"                  ...into the runtime...",
-    ]
-    for line in frames:
-        _console.print(Text(line, style="bright_green"))
-        time.sleep(0.22)
-    _console.print()

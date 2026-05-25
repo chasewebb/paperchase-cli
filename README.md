@@ -15,8 +15,6 @@
 # PaperChase
 
 > **The Sovereign Operator System.** Autonomous AI operator CLI — Claude-Code-style REPL meets Hermes-class autonomous loop. Memory engine, multi-agent dispatch, MCP server, skill registry. Operator-owned. Sovereign by default. MIT.
->
-> _Follow the white rabbit._
 
 ```bash
 pip install paperchase

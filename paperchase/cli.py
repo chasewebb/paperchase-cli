@@ -110,9 +110,6 @@ def chat() -> None:
             if cmd == "reflect":
                 _run_reflect_inline(cfg, vault)
                 continue
-            if cmd in {"follow", "rabbit"}:
-                renderer.follow_the_rabbit()
-                continue
             renderer.alert(f"unknown slash command: /{cmd}  (try /help)")
             continue
         # Normal chat turn
