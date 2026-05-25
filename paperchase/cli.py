@@ -173,6 +173,25 @@ def chat() -> None:
                     mark = "●" if name == state["backend"] else "○"
                     console.print(f"  [bright_green]{mark}[/bright_green] {name}")
                 continue
+            if cmd == "route":
+                from paperchase.runtimes.router import route_explain
+
+                target = rest.strip() or "(supply a prompt: /route summarize this code)"
+                if not rest.strip():
+                    renderer.alert("usage: /route PROMPT")
+                    continue
+                explanation = route_explain(
+                    target,
+                    available=registered_runtimes(),
+                    default=cfg.runtime_default,
+                )
+                console.print(f"  [bright_green]prompt:[/bright_green]    {explanation['prompt_preview']}")
+                flags = [k for k, v in explanation["intent"].items() if v] or ["(none)"]
+                console.print(f"  [bright_green]intent:[/bright_green]    {', '.join(flags)}")
+                console.print(f"  [bright_green]available:[/bright_green] {', '.join(explanation['available']) or '(none)'}")
+                console.print(f"  [bright_green]chosen:[/bright_green]    {explanation['chosen']}")
+                console.print(f"  [dim]{explanation['reason']}[/dim]")
+                continue
             if cmd == "plan":
                 state["plan_mode"] = not state["plan_mode"]
                 renderer.print_meta(

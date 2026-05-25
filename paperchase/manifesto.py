@@ -48,6 +48,7 @@ SLASH_HELP = """
     /backend [NAME]    show or set active backend
     /backends          list registered backends
     /model [NAME]      show or set the local model
+    /route PROMPT      explain which backend the router would pick
 
   Tools
     /read PATH         attach a file to the next turn
