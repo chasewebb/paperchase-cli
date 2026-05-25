@@ -1,0 +1,16 @@
+{
+  "name": "paperchase",
+  "version": "0.1.0",
+  "description": "Bootstrap shim for PaperChase — pip install + run, JS-world entry.",
+  "license": "MIT",
+  "author": "PaperChaseLabs <mgmt@paperchasewebb.com>",
+  "homepage": "https://paperchaselabs.com",
+  "repository": "github:chasewebb/paperchase-cli",
+  "bin": {
+    "paperchase": "bin/paperchase.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["ai", "agent", "cli", "paperchase", "paperchaselabs"]
+}
