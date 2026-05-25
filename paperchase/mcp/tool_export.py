@@ -87,4 +87,19 @@ def builtin_tool_schemas() -> list[dict]:
                 "required": ["name"],
             },
         },
+        {
+            "name": "SpawnAgent",
+            "description": (
+                "Spawn a child autonomous agent to pursue a subgoal. The child runs its own "
+                "PLAN/ACT/CRITIQUE loop with a reduced iteration budget and returns a halt summary."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "goal": {"type": "string"},
+                    "max_iterations": {"type": "integer", "default": 10},
+                },
+                "required": ["goal"],
+            },
+        },
     ]
