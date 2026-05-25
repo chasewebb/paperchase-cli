@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+.ruff_cache/
+
+# Node
+node_modules/
+.turbo/
+*.tsbuildinfo
+
+# Rust
+target/
+Cargo.lock
+
+# Runtime state
+~/.paperchase/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Secrets
+.env
+.env.*
+!.env.example
