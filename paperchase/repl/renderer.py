@@ -36,111 +36,68 @@ GAP = "  "
 
 def banner(
     *,
-    animate: bool = True,
+    animate: bool = False,
     model: str = "ollama",
     tool_count: int = 9,
     active_runtimes: int = 1,
     total_runtimes: int = 3,
     skill_count: int = 1,
+    cwd: str | None = None,
 ) -> None:
-    """Render the three-pane codec banner."""
-    _console.print()
-    _console.print(Text(f"[ INCOMING TRANSMISSION · {FREQ} ]", style="bright_green"))
-    _console.print(Text(SEP_BAR, style="green"))
-    _console.print()
+    """Compact 3-line banner — rabbit mascot left, identity/runtime/cwd right.
 
-    if animate:
-        _animate_boot()
+    Modeled on Claude Code's startup. Tight, professional, gets out of the way.
+    The MGS codec atmosphere lives in /status, /help, and sign-offs.
+    """
+    import os as _os
+    from pathlib import Path as _Path
 
-    # Title block
-    _console.print(Text(TITLE, style="bold bright_green"))
-    _console.print(Text(TAGLINE, style="bright_green"))
-    _console.print()
+    if cwd is None:
+        cwd = _os.environ.get("PWD") or str(_Path.cwd())
+    cwd = _short_path(cwd)
 
-    # Three-pane codec view
-    left_lines = _operator_pane()
-    mid_lines = _ptt_dial_pane(active_runtimes=active_runtimes, total_runtimes=total_runtimes)
-    right_lines = _agent_pane(model=model, tool_count=tool_count, skill_count=skill_count)
-
-    rows = max(len(left_lines), len(mid_lines), len(right_lines))
-    left_lines += [" " * PANE_W] * (rows - len(left_lines))
-    mid_lines += [" " * PANE_W] * (rows - len(mid_lines))
-    right_lines += [" " * PANE_W] * (rows - len(right_lines))
-
-    for l, m, r in zip(left_lines, mid_lines, right_lines):
-        _console.print(Text(l + GAP + m + GAP + r, style="bright_green"))
+    runtime_line = f"{model} · {tool_count} tools · {skill_count} skill" + ("s" if skill_count != 1 else "")
+    runtime_line += f" · {active_runtimes}/{total_runtimes} runtimes"
+    rabbit_pad = 11  # widest rabbit line is c("")("") = 9 + 2 trailing spaces
 
     _console.print()
-    _console.print(Text("[ TRANSMISSION SIGNED BY PAPERCHASELABS ]", style="bright_green"))
-    _console.print(Text(SLASH_HINT, style="dim"))
+    _console.print(
+        Text.assemble(
+            (RABBIT[0].ljust(rabbit_pad), "bright_green"),
+            (f"{TITLE}", "bold white"),
+            (f" v{__version__}", "bright_green"),
+        )
+    )
+    _console.print(
+        Text.assemble(
+            (RABBIT[1].ljust(rabbit_pad), "bright_green"),
+            (runtime_line, "dim white"),
+        )
+    )
+    _console.print(
+        Text.assemble(
+            (RABBIT[2].ljust(rabbit_pad), "bright_green"),
+            (cwd, "dim white"),
+        )
+    )
     _console.print()
 
 
-def _pane(lines: list[str]) -> list[str]:
-    """Wrap a list of inner lines in a thin codec frame of width PANE_W."""
-    inner = PANE_W - 2  # account for │ borders
-    top = "╭" + "─" * inner + "╮"
-    bot = "╰" + "─" * inner + "╯"
-    body = [f"│{line[:inner].ljust(inner)}│" for line in lines]
-    return [top] + body + [bot]
+def _short_path(p: str) -> str:
+    """Collapse $HOME → ~ and shorten deeply nested paths to ~/.../tail."""
+    import os as _os
 
-
-def _operator_pane() -> list[str]:
-    """Left pane — the operator (rabbit mascot + label)."""
-    inside = [
-        "",
-        "   " + RABBIT[0],
-        "   " + RABBIT[1],
-        "   " + RABBIT[2],
-        "",
-        "    OPERATOR",
-        "",
-    ]
-    return _pane(inside)
-
-
-def _ptt_dial_pane(*, active_runtimes: int, total_runtimes: int) -> list[str]:
-    """Center pane — PTT / FREQ readout / MEMORY (the codec dial)."""
-    freq_seven_seg = "140.85"
-    runtime_bar = _bar(active_runtimes, total_runtimes, width=10)
-    inside = [
-        "",
-        "    [ PTT ]",
-        "  ╭──────────╮",
-        f"  │ {freq_seven_seg:>8} │",
-        "  ╰──────────╯",
-        f"   {runtime_bar}",
-        "   [ MEMORY ]",
-        "",
-    ]
-    return _pane(inside)
-
-
-def _agent_pane(*, model: str, tool_count: int, skill_count: int) -> list[str]:
-    """Right pane — the agent identification (title, version, model, tools, skills)."""
-    inside = [
-        "",
-        "    PAPERCHASE",
-        f"     v{__version__}",
-        "",
-        f"   {model} · {tool_count} tools",
-        f"   {skill_count} skill" + ("" if skill_count == 1 else "s"),
-        "",
-        "      AGENT",
-        "",
-    ]
-    return _pane(inside)
-
-
-def _bar(filled: int, total: int, *, width: int = 10) -> str:
-    """Codec-style progress bar: filled blocks ▰ + empty blocks ▱."""
-    if total <= 0:
-        return "▱" * width
-    n = max(0, min(width, round(width * filled / total)))
-    return ("▰" * n) + ("▱" * (width - n))
+    home = _os.environ.get("HOME", "")
+    if home and p.startswith(home):
+        p = "~" + p[len(home):]
+    parts = p.split("/")
+    if len(parts) <= 5:
+        return p
+    return "/".join(parts[:2] + ["..."] + parts[-2:])
 
 
 def _animate_boot() -> None:
+    """Optional tuning-in lines — only when banner(animate=True)."""
     for line in BOOT_LINES:
         _console.print(Text(f"  {line}", style="dim bright_green"))
         time.sleep(0.16)
